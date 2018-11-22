@@ -40,6 +40,9 @@ static inline int computeScanSegmentIdx(int x, int line_width)
 
 namespace cura {
 
+double Infill::limit_polygon_infill_time = 0;
+double Infill::connect_polygon_time = 0;
+
 void Infill::generate(Polygons& result_polygons, Polygons& result_lines, const SierpinskiFillProvider* cross_fill_provider, const SliceMeshStorage* mesh)
 {
     coord_t outline_offset_raw = outline_offset;
@@ -74,6 +77,7 @@ void Infill::generate(Polygons& result_polygons, Polygons& result_lines, const S
 
     if (connect_polygons)
     {
+        TimeKeeper tk;
         // remove too small polygons
         coord_t snap_distance = infill_line_width * 2; // polygons with a span of max 1 * nozzle_size are too small
         auto it = std::remove_if(result_polygons.begin(), result_polygons.end(), [snap_distance](PolygonRef poly) { return poly.shorterThan(snap_distance); });
@@ -82,6 +86,7 @@ void Infill::generate(Polygons& result_polygons, Polygons& result_lines, const S
         PolygonConnector connector(infill_line_width, infill_line_width * 3 / 2);
         connector.add(result_polygons);
         result_polygons = connector.connect();
+        connect_polygon_time += tk.restart();
     }
 }
 
@@ -359,9 +364,11 @@ void Infill::generateCrossInfill(const SierpinskiFillProvider& cross_fill_provid
 
     if (zig_zaggify)
     {
+        TimeKeeper tk;
         Polygons cross_pattern_polygons;
         cross_pattern_polygons.add(cross_pattern_polygon);
         result_polygons.add(outline.intersection(cross_pattern_polygons));
+        limit_polygon_infill_time += tk.restart();
     }
     else
     {
